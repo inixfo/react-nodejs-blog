@@ -1,11 +1,13 @@
-const Category = require('../models/Category');
+const { Category } = require('../models');
 
 // @desc    Get all categories
 // @route   GET /api/v1/categories
 // @access  Public
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await Category.find().sort({ name: 1 });
+    const categories = await Category.findAll({
+      order: [['name', 'ASC']]
+    });
     console.log('Categories fetched successfully:', categories.length);
     res.status(200).json({
       success: true,
@@ -26,7 +28,7 @@ exports.getCategories = async (req, res) => {
 // @access  Public
 exports.getCategory = async (req, res) => {
   try {
-    const category = await Category.findById(req.params.id);
+    const category = await Category.findByPk(req.params.id);
     if (!category) {
       console.log('Category not found:', req.params.id);
       return res.status(404).json({
@@ -56,7 +58,10 @@ exports.createCategory = async (req, res) => {
     console.log('Creating category with data:', req.body);
     
     // Check if category with same name already exists
-    const existingCategory = await Category.findOne({ name: req.body.name });
+    const existingCategory = await Category.findOne({ 
+      where: { name: req.body.name } 
+    });
+    
     if (existingCategory) {
       console.log('Category with name already exists:', req.body.name);
       return res.status(400).json({
@@ -87,7 +92,7 @@ exports.updateCategory = async (req, res) => {
   try {
     console.log('Updating category:', req.params.id, 'with data:', req.body);
     
-    let category = await Category.findById(req.params.id);
+    let category = await Category.findByPk(req.params.id);
     if (!category) {
       console.log('Category not found:', req.params.id);
       return res.status(404).json({
@@ -98,7 +103,10 @@ exports.updateCategory = async (req, res) => {
 
     // Check if new name conflicts with existing category
     if (req.body.name && req.body.name !== category.name) {
-      const existingCategory = await Category.findOne({ name: req.body.name });
+      const existingCategory = await Category.findOne({ 
+        where: { name: req.body.name } 
+      });
+      
       if (existingCategory) {
         console.log('Category with name already exists:', req.body.name);
         return res.status(400).json({
@@ -108,10 +116,7 @@ exports.updateCategory = async (req, res) => {
       }
     }
 
-    category = await Category.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
-    });
+    await category.update(req.body);
 
     console.log('Category updated successfully:', category.name);
     res.status(200).json({
@@ -134,7 +139,7 @@ exports.deleteCategory = async (req, res) => {
   try {
     console.log('Deleting category:', req.params.id);
     
-    const category = await Category.findById(req.params.id);
+    const category = await Category.findByPk(req.params.id);
     if (!category) {
       console.log('Category not found:', req.params.id);
       return res.status(404).json({
@@ -143,7 +148,7 @@ exports.deleteCategory = async (req, res) => {
       });
     }
 
-    await category.remove();
+    await category.destroy();
     console.log('Category deleted successfully:', category.name);
     res.status(200).json({
       success: true,

@@ -1,22 +1,31 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const categorySchema = new mongoose.Schema({
+const Category = sequelize.define('Category', {
   name: {
-    type: String,
-    required: [true, 'Please provide a category name'],
+    type: DataTypes.STRING(50),
+    allowNull: false,
     unique: true,
-    trim: true,
-    maxlength: [50, 'Name cannot be more than 50 characters']
+    validate: {
+      notEmpty: {
+        msg: 'Please add a name'
+      },
+      len: {
+        args: [1, 50],
+        msg: 'Name cannot be more than 50 characters'
+      }
+    }
   },
   description: {
-    type: String,
-    required: [true, 'Please provide a category description'],
-    maxlength: [500, 'Description cannot be more than 500 characters']
+    type: DataTypes.STRING(200),
+    allowNull: true
   },
   createdAt: {
-    type: Date,
-    default: Date.now
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   }
+}, {
+  timestamps: true
 });
 
-module.exports = mongoose.model('Category', categorySchema); 
+module.exports = Category; 

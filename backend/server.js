@@ -1,5 +1,4 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const multer = require('multer');
@@ -10,56 +9,36 @@ const commentRoutes = require('./routes/comment');
 const reportRoutes = require('./routes/report');
 const userRoutes = require('./routes/user');
 const { protect } = require('./middleware/auth');
+const { sequelize, connectDB } = require('./config/db');
+const models = require('./models');
 
 // Load env vars
 dotenv.config();
 
 // Debug environment variables
 console.log('Environment variables loaded:');
-console.log('MONGO_URI:', process.env.MONGO_URI ? 'Present' : 'Missing');
+console.log('DB_HOST:', process.env.DB_HOST ? 'Present' : 'Missing');
+console.log('DB_USER:', process.env.DB_USER ? 'Present' : 'Missing');
+console.log('DB_PASSWORD:', process.env.DB_PASSWORD ? 'Present (hidden)' : 'Missing');
+console.log('DB_NAME:', process.env.DB_NAME ? 'Present' : 'Missing');
 console.log('JWT_SECRET:', process.env.JWT_SECRET ? 'Present' : 'Missing');
 console.log('PORT:', process.env.PORT || 5000);
 
-// Connect to database with better error handling and options
-if (!process.env.MONGO_URI) {
-  console.error('MONGO_URI is not defined in environment variables');
-  process.exit(1);
-}
-
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-  socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-  family: 4 // Use IPv4, skip trying IPv6
-})
-.then(() => {
-  console.log('MongoDB Connected Successfully');
-})
-.catch(err => {
-  console.error('MongoDB connection error:', err);
-  process.exit(1); // Exit with failure
-});
-
-// Handle MongoDB connection errors after initial connection
-mongoose.connection.on('error', err => {
-  console.error('MongoDB connection error:', err);
-});
-
-mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB disconnected');
-});
-
-// Handle application termination
-process.on('SIGINT', async () => {
-  try {
-    await mongoose.connection.close();
-    console.log('MongoDB connection closed through app termination');
-    process.exit(0);
-  } catch (err) {
-    console.error('Error during MongoDB connection closure:', err);
-    process.exit(1);
+// Connect to database
+connectDB().then(() => {
+  console.log('Database connection established');
+  
+  // In development mode, sync all models with the database
+  if (process.env.NODE_ENV === 'development') {
+    sequelize.sync({ alter: true }).then(() => {
+      console.log('Database synchronized');
+    }).catch(err => {
+      console.error('Error synchronizing database:', err);
+    });
   }
+}).catch(err => {
+  console.error('Failed to connect to database:', err);
+  process.exit(1);
 });
 
 const app = express();

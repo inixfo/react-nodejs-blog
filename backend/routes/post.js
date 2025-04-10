@@ -7,7 +7,7 @@ const {
   createPost,
   updatePost,
   deletePost,
-  likePost,
+  toggleLike,
   searchPosts
 } = require('../controllers/post');
 const { protect, authorize } = require('../middleware/auth');
@@ -40,6 +40,6 @@ router
 
 router
   .route('/:id/like')
-  .put(protect, likePost);
+  .put(protect, toggleLike);
 
 module.exports = router; 

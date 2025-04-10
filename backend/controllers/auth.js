@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { User } = require('../models');
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -24,7 +24,7 @@ exports.register = async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -40,13 +40,13 @@ exports.register = async (req, res) => {
     });
 
     // Create token
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.status(201).json({
       success: true,
       token,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role
@@ -79,7 +79,7 @@ exports.login = async (req, res) => {
     }
 
     // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ where: { email } });
     if (!user) {
       console.log('User not found for email:', email);
       return res.status(401).json({
@@ -87,7 +87,7 @@ exports.login = async (req, res) => {
         message: 'Invalid credentials'
       });
     }
-    console.log('User found:', { id: user._id, email: user.email, role: user.role });
+    console.log('User found:', { id: user.id, email: user.email, role: user.role });
 
     // Check if password matches
     const isMatch = await user.matchPassword(password);
@@ -108,13 +108,13 @@ exports.login = async (req, res) => {
     }
 
     // Create token
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.status(200).json({
       success: true,
       token,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role
@@ -134,7 +134,7 @@ exports.login = async (req, res) => {
 // @access  Private
 exports.getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
 
     if (!user) {
       return res.status(404).json({
@@ -146,7 +146,7 @@ exports.getMe = async (req, res) => {
     res.status(200).json({
       success: true,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role

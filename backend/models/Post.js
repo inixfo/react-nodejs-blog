@@ -1,64 +1,68 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const postSchema = new mongoose.Schema({
+const Post = sequelize.define('Post', {
   title: {
-    type: String,
-    required: [true, 'Please provide a title'],
-    trim: true,
-    maxlength: [100, 'Title cannot be more than 100 characters']
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    validate: {
+      notEmpty: {
+        msg: 'Please provide a title'
+      },
+      len: {
+        args: [1, 100],
+        msg: 'Title cannot be more than 100 characters'
+      }
+    }
   },
   content: {
-    type: String,
-    required: [true, 'Please provide content']
+    type: DataTypes.TEXT,
+    allowNull: false,
+    validate: {
+      notEmpty: {
+        msg: 'Please provide content'
+      }
+    }
   },
   image: {
-    type: String,
-    default: null
+    type: DataTypes.STRING,
+    allowNull: true
   },
-  author: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  authorId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
   },
-  category: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Category',
-    required: true
+  categoryId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Categories',
+      key: 'id'
+    }
   },
-  likes: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  comments: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Comment'
-  }],
-  tags: [{
-    type: String,
-    trim: true
-  }],
   status: {
-    type: String,
-    enum: ['draft', 'published'],
-    default: 'published'
+    type: DataTypes.ENUM('draft', 'published'),
+    defaultValue: 'published'
   },
   createdAt: {
-    type: Date,
-    default: Date.now
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   },
   updatedAt: {
-    type: Date,
-    default: Date.now
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+}, {
+  timestamps: true,
+  hooks: {
+    beforeUpdate: (post) => {
+      post.updatedAt = new Date();
+    }
   }
 });
 
-// Update the updatedAt timestamp before saving
-postSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  next();
-});
-
-// Add text index for search functionality
-postSchema.index({ title: 'text', content: 'text', tags: 'text' });
-
-module.exports = mongoose.model('Post', postSchema); 
+module.exports = Post; 

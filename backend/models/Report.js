@@ -1,40 +1,50 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const reportSchema = new mongoose.Schema({
-  reporter: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  reportedContent: {
-    type: mongoose.Schema.Types.ObjectId,
-    refPath: 'contentType',
-    required: true
-  },
-  contentType: {
-    type: String,
-    required: true,
-    enum: ['Post', 'Comment']
-  },
+const Report = sequelize.define('Report', {
   reason: {
-    type: String,
-    required: true,
-    enum: ['inappropriate', 'spam', 'hate_speech', 'other']
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: {
+        msg: 'Please provide a reason for the report'
+      }
+    }
   },
-  description: {
-    type: String,
-    required: true,
-    maxlength: [500, 'Description cannot be more than 500 characters']
+  reporterId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
+  },
+  postId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Posts',
+      key: 'id'
+    }
+  },
+  commentId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Comments',
+      key: 'id'
+    }
   },
   status: {
-    type: String,
-    enum: ['pending', 'reviewed', 'resolved'],
-    default: 'pending'
+    type: DataTypes.ENUM('pending', 'reviewed', 'dismissed'),
+    defaultValue: 'pending'
   },
   createdAt: {
-    type: Date,
-    default: Date.now
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   }
+}, {
+  timestamps: true
 });
 
-module.exports = mongoose.model('Report', reportSchema); 
+module.exports = Report; 

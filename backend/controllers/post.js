@@ -1,4 +1,5 @@
-const Post = require('../models/Post');
+const { Post, User, Category, Comment } = require('../models');
+const { Op } = require('sequelize');
 
 // @desc    Get all posts
 // @route   GET /api/v1/posts
@@ -7,43 +8,56 @@ exports.getPosts = async (req, res) => {
   try {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
+    const offset = (page - 1) * limit;
 
     // Build query
-    const query = {};
+    const whereClause = {};
     if (req.query.author) {
-      query.author = req.query.author;
+      whereClause.authorId = req.query.author;
     }
 
-    const total = await Post.countDocuments(query);
-
-    const posts = await Post.find(query)
-      .populate('author', 'name')
-      .populate('category', 'name')
-      .populate({
-        path: 'comments',
-        select: 'content author createdAt',
-        populate: {
-          path: 'author',
-          select: 'name'
+    const { count, rows: posts } = await Post.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Category,
+          as: 'category',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Comment,
+          as: 'comments',
+          attributes: ['id', 'content', 'createdAt'],
+          include: [
+            {
+              model: User,
+              as: 'author',
+              attributes: ['id', 'name']
+            }
+          ]
         }
-      })
-      .sort({ createdAt: -1 })
-      .skip(startIndex)
-      .limit(limit);
+      ],
+      order: [['createdAt', 'DESC']],
+      offset,
+      limit
+    });
 
     // Pagination result
     const pagination = {};
 
-    if (endIndex < total) {
+    if (offset + posts.length < count) {
       pagination.next = {
         page: page + 1,
         limit
       };
     }
 
-    if (startIndex > 0) {
+    if (offset > 0) {
       pagination.prev = {
         page: page - 1,
         limit
@@ -53,6 +67,7 @@ exports.getPosts = async (req, res) => {
     res.status(200).json({
       success: true,
       count: posts.length,
+      total: count,
       pagination,
       data: posts
     });
@@ -70,16 +85,32 @@ exports.getPosts = async (req, res) => {
 // @access  Public
 exports.getPost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id)
-      .populate('author', 'name')
-      .populate({
-        path: 'comments',
-        select: 'content author createdAt',
-        populate: {
-          path: 'author',
-          select: 'name'
+    const post = await Post.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Category,
+          as: 'category',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Comment,
+          as: 'comments',
+          attributes: ['id', 'content', 'createdAt'],
+          include: [
+            {
+              model: User,
+              as: 'author',
+              attributes: ['id', 'name']
+            }
+          ]
         }
-      });
+      ]
+    });
 
     if (!post) {
       return res.status(404).json({
@@ -110,11 +141,11 @@ exports.createPost = async (req, res) => {
     console.log('User:', req.user);
 
     // Validate required fields
-    if (!req.body.title || !req.body.content || !req.body.category) {
+    if (!req.body.title || !req.body.content || !req.body.categoryId) {
       console.log('Missing required fields:', {
         title: req.body.title,
         content: req.body.content,
-        category: req.body.category
+        categoryId: req.body.categoryId
       });
       return res.status(400).json({
         success: false,
@@ -123,7 +154,7 @@ exports.createPost = async (req, res) => {
     }
 
     // Set the author and status
-    req.body.author = req.user.id;
+    req.body.authorId = req.user.id;
     req.body.status = 'published';
 
     // Handle image upload
@@ -134,17 +165,27 @@ exports.createPost = async (req, res) => {
     // Create the post
     const post = await Post.create(req.body);
 
-    // Populate the category and author fields
-    await post.populate([
-      { path: 'category', select: 'name' },
-      { path: 'author', select: 'name' }
-    ]);
+    // Fetch the post with associations
+    const newPost = await Post.findByPk(post.id, {
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Category,
+          as: 'category',
+          attributes: ['id', 'name']
+        }
+      ]
+    });
 
-    console.log('Post created successfully:', post);
+    console.log('Post created successfully:', newPost);
 
     res.status(201).json({
       success: true,
-      data: post
+      data: newPost
     });
   } catch (error) {
     console.error('Post creation error:', error);
@@ -160,7 +201,7 @@ exports.createPost = async (req, res) => {
 // @access  Private
 exports.updatePost = async (req, res) => {
   try {
-    let post = await Post.findById(req.params.id);
+    let post = await Post.findByPk(req.params.id);
 
     if (!post) {
       return res.status(404).json({
@@ -170,21 +211,34 @@ exports.updatePost = async (req, res) => {
     }
 
     // Make sure user is post owner or admin
-    if (post.author.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (post.authorId !== req.user.id && req.user.role !== 'admin') {
       return res.status(401).json({
         success: false,
         message: 'Not authorized to update this post'
       });
     }
 
-    post = await Post.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
+    await post.update(req.body);
+
+    // Fetch the updated post with associations
+    const updatedPost = await Post.findByPk(post.id, {
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Category,
+          as: 'category',
+          attributes: ['id', 'name']
+        }
+      ]
     });
 
     res.status(200).json({
       success: true,
-      data: post
+      data: updatedPost
     });
   } catch (error) {
     res.status(400).json({
@@ -199,7 +253,7 @@ exports.updatePost = async (req, res) => {
 // @access  Private
 exports.deletePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findByPk(req.params.id);
 
     if (!post) {
       return res.status(404).json({
@@ -209,14 +263,14 @@ exports.deletePost = async (req, res) => {
     }
 
     // Make sure user is post owner or admin
-    if (post.author.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (post.authorId !== req.user.id && req.user.role !== 'admin') {
       return res.status(401).json({
         success: false,
         message: 'Not authorized to delete this post'
       });
     }
 
-    await post.remove();
+    await post.destroy();
 
     res.status(200).json({
       success: true,
@@ -230,12 +284,12 @@ exports.deletePost = async (req, res) => {
   }
 };
 
-// @desc    Like/Unlike post
+// @desc    Like/unlike a post
 // @route   PUT /api/v1/posts/:id/like
 // @access  Private
-exports.likePost = async (req, res) => {
+exports.toggleLike = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findByPk(req.params.id);
 
     if (!post) {
       return res.status(404).json({
@@ -244,23 +298,24 @@ exports.likePost = async (req, res) => {
       });
     }
 
-    // Check if post has already been liked by user
-    const isLiked = post.likes.includes(req.user.id);
+    // Check if already liked
+    const liked = await post.hasLikedBy(req.user.id);
 
-    if (isLiked) {
+    if (liked) {
       // Unlike
-      post.likes = post.likes.filter(like => like.toString() !== req.user.id);
+      await post.removeLikedBy(req.user.id);
+      res.status(200).json({
+        success: true,
+        data: { liked: false }
+      });
     } else {
       // Like
-      post.likes.push(req.user.id);
+      await post.addLikedBy(req.user.id);
+      res.status(200).json({
+        success: true,
+        data: { liked: true }
+      });
     }
-
-    await post.save();
-
-    res.status(200).json({
-      success: true,
-      data: post
-    });
   } catch (error) {
     res.status(400).json({
       success: false,
@@ -283,17 +338,27 @@ exports.searchPosts = async (req, res) => {
       });
     }
 
-    const posts = await Post.find({
-      $or: [
-        { title: { $regex: query, $options: 'i' } },
-        { content: { $regex: query, $options: 'i' } },
-        { tags: { $regex: query, $options: 'i' } }
+    const posts = await Post.findAll({
+      where: {
+        [Op.or]: [
+          { title: { [Op.like]: `%${query}%` } },
+          { content: { [Op.like]: `%${query}%` } }
+        ]
+      },
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Category,
+          as: 'category',
+          attributes: ['id', 'name']
+        }
       ],
-      status: 'published'
-    })
-      .populate('author', 'name')
-      .populate('category', 'name')
-      .sort({ createdAt: -1 });
+      order: [['createdAt', 'DESC']]
+    });
 
     res.status(200).json({
       success: true,
@@ -301,7 +366,6 @@ exports.searchPosts = async (req, res) => {
       data: posts
     });
   } catch (error) {
-    console.error('Search error:', error);
     res.status(400).json({
       success: false,
       message: error.message

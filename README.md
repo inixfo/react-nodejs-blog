@@ -23,21 +23,16 @@
    npm --version
    ```
 
-### 2. MongoDB Installation
-1. Visit [MongoDB Download Center](https://www.mongodb.com/try/download/community)
-2. Download MongoDB Community Server for Windows
-3. Run the installer and follow these steps:
-   - Choose "Complete" installation
-   - Check "Install MongoDB as a Service"
-   - Click "Install"
-4. Create a data directory:
-   ```bash
-   mkdir C:\data\db
-   ```
-5. Verify installation by opening Command Prompt and typing:
-   ```bash
-   mongod --version
-   ```
+### 2. MySQL Installation
+1. Visit [MySQL Community Downloads](https://dev.mysql.com/downloads/mysql/)
+2. Download MySQL Installer for Windows
+3. Run the installer and select:
+   - Choose "Custom" installation
+   - Select MySQL Server, MySQL Workbench, and Connector/J
+   - Click "Next" through installation steps
+   - Set root password (remember this for later)
+   - Complete the setup wizard
+4. Verify installation by opening MySQL Workbench and connecting to your local instance
 
 ### 3. Git Installation (Optional, for version control)
 1. Visit [Git Download](https://git-scm.com/downloads)
@@ -50,35 +45,35 @@
 
 ## Database Setup
 
-1. Start MongoDB service:
+1. Start MySQL service:
    - Open Command Prompt as Administrator
    - Run:
      ```bash
-     net start MongoDB
+     net start MySQL80
      ```
-   - Or check Services (Windows + R, type "services.msc") and ensure MongoDB is running
+   - Or check Services (Windows + R, type "services.msc") and ensure MySQL is running
 
-2. Create the database:
-   - Open MongoDB Compass (installed with MongoDB)
-   - Click "New Connection"
-   - Use connection string: `mongodb://localhost:27017`
-   - Click "Connect"
-   - Create a new database named "blog"
+2. Create the database automatically using the script:
+   ```bash
+   cd backend
+   node scripts/createDatabase.js
+   ```
+   
+   Or manually using MySQL Workbench:
+   - Open MySQL Workbench
+   - Connect to your local MySQL instance
+   - Create a new query and execute:
+     ```sql
+     CREATE DATABASE IF NOT EXISTS blog_app;
+     ```
 
 ## Project Setup
 
 ### 1. Clone the Project
-Choose one of the three repositories based on your assigned part:
 
 ```bash
-# For Authentication and User Management
-git clone https://github.com/inixfo/blog-auth-user-management.git
-
-# For Post and Comment Management
-git clone https://github.com/inixfo/blog-post-comment-management.git
-
-# For Admin UI and Components
-git clone https://github.com/inixfo/blog-admin-ui-components.git
+git clone https://github.com/yourusername/blog.git
+cd blog
 ```
 
 ### 2. Backend Setup
@@ -95,13 +90,19 @@ git clone https://github.com/inixfo/blog-admin-ui-components.git
 3. Create `.env` file in the backend directory:
    ```env
    PORT=5000
-   MONGODB_URI=mongodb://localhost:27017/blog
+   DB_HOST=localhost
+   DB_USER=root
+   DB_PASSWORD=your_mysql_password
+   DB_NAME=blog_app
+   DB_DIALECT=mysql
    JWT_SECRET=your_jwt_secret_key
+   JWT_EXPIRE=30d
    NODE_ENV=development
    ```
 
-4. Create admin user:
+4. Create database tables and admin user:
    ```bash
+   node scripts/createDatabase.js
    node scripts/createAdmin.js
    ```
    This will create an admin user with:
@@ -121,7 +122,7 @@ git clone https://github.com/inixfo/blog-admin-ui-components.git
 
 3. Create `.env` file in the frontend directory:
    ```env
-   REACT_APP_API_URL=http://localhost:5000/api
+   REACT_APP_API_URL=http://localhost:5000/api/v1
    ```
 
 ## Running the Application
@@ -144,7 +145,7 @@ git clone https://github.com/inixfo/blog-admin-ui-components.git
 
 ### 3. Access the Application
 - Frontend: http://localhost:3000
-- Backend API: http://localhost:5000/api
+- Backend API: http://localhost:5000/api/v1
 - Admin Dashboard: http://localhost:3000/admin
   - Login with admin credentials:
     - Email: admin@admin.com
@@ -152,11 +153,11 @@ git clone https://github.com/inixfo/blog-admin-ui-components.git
 
 ## Common Issues and Solutions
 
-### MongoDB Connection Issues
-1. Error: "MongoDB connection failed"
-   - Ensure MongoDB service is running
-   - Check if the connection string is correct in .env
-   - Verify MongoDB is running on port 27017
+### MySQL Connection Issues
+1. Error: "Connection refused"
+   - Ensure MySQL service is running
+   - Check if the connection details in .env are correct
+   - Verify MySQL is running on default port 3306
 
 ### Node.js Issues
 1. Error: "node_modules not found"
@@ -214,7 +215,11 @@ project/
 Remember to set up all environment variables before running the application:
 - Backend (.env):
   - PORT
-  - MONGODB_URI
+  - DB_HOST
+  - DB_USER
+  - DB_PASSWORD
+  - DB_NAME
+  - DB_DIALECT
   - JWT_SECRET
   - NODE_ENV
 

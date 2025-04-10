@@ -1,44 +1,48 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { User } = require('../models');
 
+// Protect routes
 exports.protect = async (req, res, next) => {
+  let token;
+
+  // Get token from Authorization header
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
+  // Check if token exists
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized to access this route'
+    });
+  }
+
   try {
-    let token;
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+    // Get user from database
+    req.user = await User.findByPk(decoded.id);
 
-    if (!token) {
+    if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized to access this route'
+        message: 'User not found'
       });
     }
 
-    try {
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Get user from token
-      req.user = await User.findById(decoded.id).select('-password');
-      next();
-    } catch (err) {
-      console.error('Token verification error:', err);
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized to access this route'
-      });
-    }
+    next();
   } catch (error) {
     console.error('Auth middleware error:', error);
-    res.status(500).json({
+    return res.status(401).json({
       success: false,
-      message: 'Server Error'
+      message: 'Not authorized to access this route'
     });
   }
 };
 
+// Grant access to specific roles
 exports.authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
