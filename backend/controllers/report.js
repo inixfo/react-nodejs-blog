@@ -1,23 +1,17 @@
 const Report = require('../models/Report');
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
+const User = require('../models/User');
 
 // @desc    Create report
 // @route   POST /api/v1/reports
 // @access  Private
 exports.createReport = async (req, res) => {
   try {
-    const { reportedContent, contentType, reason, description } = req.body;
-
-    console.log('Creating report with data:', {
-      reportedContent,
-      contentType,
-      reason,
-      description
-    });
+    const { reportedContentId, contentType, reason, description } = req.body;
 
     // Validate required fields
-    if (!reportedContent || !contentType || !reason || !description) {
+    if (!reportedContentId || !contentType || !reason || !description) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
@@ -35,25 +29,25 @@ exports.createReport = async (req, res) => {
     // Validate content exists
     let content;
     if (contentType === 'Post') {
-      content = await Post.findById(reportedContent);
-      console.log('Found post:', content ? 'Yes' : 'No');
+      content = await Post.findByPk(reportedContentId);
     } else if (contentType === 'Comment') {
-      content = await Comment.findById(reportedContent);
-      console.log('Found comment:', content ? 'Yes' : 'No');
+      content = await Comment.findByPk(reportedContentId);
     }
 
     if (!content) {
       return res.status(404).json({
         success: false,
-        message: `${contentType} not found with ID ${reportedContent}`
+        message: `${contentType} not found with ID ${reportedContentId}`
       });
     }
 
     // Check if user has already reported this content
     const existingReport = await Report.findOne({
-      reporter: req.user.id,
-      reportedContent,
-      contentType
+      where: {
+        reporterId: req.user.id,
+        reportedContentId,
+        contentType
+      }
     });
 
     if (existingReport) {
@@ -64,21 +58,22 @@ exports.createReport = async (req, res) => {
     }
 
     const report = await Report.create({
-      reporter: req.user.id,
-      reportedContent,
+      reporterId: req.user.id,
+      reportedContentId,
       contentType,
       reason,
-      description
+      description,
+      status: 'pending'
     });
 
-    // Populate reporter information
-    await report.populate('reporter', 'name');
-
-    console.log('Report created successfully:', report._id);
+    // Get reporter information
+    const reporter = await User.findByPk(req.user.id, {
+      attributes: ['id', 'name', 'email']
+    });
 
     res.status(201).json({
       success: true,
-      data: report
+      data: { ...report.toJSON(), reporter }
     });
   } catch (error) {
     console.error('Error creating report:', error);
@@ -95,10 +90,16 @@ exports.createReport = async (req, res) => {
 // @access  Private/Admin
 exports.getReports = async (req, res) => {
   try {
-    const reports = await Report.find()
-      .populate('reporter', 'name email')
-      .populate('reportedContent')
-      .sort('-createdAt');
+    const reports = await Report.findAll({
+      include: [
+        {
+          model: User,
+          as: 'reporter',
+          attributes: ['id', 'name', 'email']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.status(200).json({
       success: true,
@@ -118,9 +119,15 @@ exports.getReports = async (req, res) => {
 // @access  Private/Admin
 exports.getReport = async (req, res) => {
   try {
-    const report = await Report.findById(req.params.id)
-      .populate('reporter', 'name email')
-      .populate('reportedContent');
+    const report = await Report.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'reporter',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
 
     if (!report) {
       return res.status(404).json({
@@ -146,7 +153,7 @@ exports.getReport = async (req, res) => {
 // @access  Private/Admin
 exports.updateReportStatus = async (req, res) => {
   try {
-    const report = await Report.findById(req.params.id);
+    const report = await Report.findByPk(req.params.id);
 
     if (!report) {
       return res.status(404).json({
@@ -155,8 +162,7 @@ exports.updateReportStatus = async (req, res) => {
       });
     }
 
-    report.status = req.body.status;
-    await report.save();
+    await report.update({ status: req.body.status });
 
     res.status(200).json({
       success: true,
@@ -176,7 +182,7 @@ exports.updateReportStatus = async (req, res) => {
 // @access  Private/Admin
 exports.deleteReport = async (req, res) => {
   try {
-    const report = await Report.findById(req.params.id);
+    const report = await Report.findByPk(req.params.id);
 
     if (!report) {
       return res.status(404).json({
@@ -185,7 +191,7 @@ exports.deleteReport = async (req, res) => {
       });
     }
 
-    await report.remove();
+    await report.destroy();
 
     res.status(200).json({
       success: true,
@@ -205,10 +211,19 @@ exports.deleteReport = async (req, res) => {
 // @access  Private/Admin
 exports.getReportsByStatus = async (req, res) => {
   try {
-    const reports = await Report.find({ status: req.params.status })
-      .populate('reporter', 'name email')
-      .populate('reportedContent')
-      .sort({ createdAt: -1 });
+    const reports = await Report.findAll({
+      where: {
+        status: req.params.status
+      },
+      include: [
+        {
+          model: User,
+          as: 'reporter',
+          attributes: ['id', 'name', 'email']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.status(200).json({
       success: true,
@@ -216,9 +231,10 @@ exports.getReportsByStatus = async (req, res) => {
       data: reports
     });
   } catch (error) {
-    res.status(400).json({
+    console.error('Error fetching reports by status:', error);
+    res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Error fetching reports by status'
     });
   }
 }; 

@@ -142,7 +142,7 @@ const Comment = ({ comment, onLike, onDelete, onUpdate, onReply }) => {
             <Typography variant="caption" color="text.secondary">
               {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
             </Typography>
-            {user && (user.id === comment.author?._id || user.role === 'admin') && (
+            {user && (user.id === comment.author?.id || user.role === 'admin') && (
               <>
                 <IconButton size="small" onClick={handleMenu}>
                   <MoreVert />

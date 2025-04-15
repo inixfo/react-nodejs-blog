@@ -6,7 +6,9 @@ const Post = require('../models/Post');
 // @access  Public
 exports.getUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findByPk(req.params.id, {
+      attributes: { exclude: ['password'] }
+    });
     
     if (!user) {
       return res.status(404).json({
@@ -32,7 +34,7 @@ exports.getUser = async (req, res) => {
 // @access  Private
 exports.updateUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -42,7 +44,7 @@ exports.updateUser = async (req, res) => {
     }
 
     // Make sure user is updating their own profile or is admin
-    if (user._id.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (user.id !== req.user.id && req.user.role !== 'admin') {
       return res.status(401).json({
         success: false,
         message: 'Not authorized to update this user'
@@ -50,11 +52,11 @@ exports.updateUser = async (req, res) => {
     }
 
     // Update fields
-    user.name = req.body.name || user.name;
-    user.email = req.body.email || user.email;
-    if (req.body.avatar) user.avatar = req.body.avatar;
-
-    await user.save();
+    await user.update({
+      name: req.body.name || user.name,
+      email: req.body.email || user.email,
+      avatar: req.body.avatar || user.avatar
+    });
 
     res.status(200).json({
       success: true,
@@ -73,7 +75,9 @@ exports.updateUser = async (req, res) => {
 // @access  Private/Admin
 exports.getUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password');
+    const users = await User.findAll({
+      attributes: { exclude: ['password'] }
+    });
 
     res.status(200).json({
       success: true,
@@ -93,7 +97,7 @@ exports.getUsers = async (req, res) => {
 // @access  Private/Admin
 exports.updateUserStatus = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -102,8 +106,7 @@ exports.updateUserStatus = async (req, res) => {
       });
     }
 
-    user.isApproved = req.body.isApproved;
-    await user.save();
+    await user.update({ isApproved: req.body.isApproved });
 
     res.status(200).json({
       success: true,
@@ -122,7 +125,7 @@ exports.updateUserStatus = async (req, res) => {
 // @access  Private/Admin
 exports.deleteUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -132,10 +135,10 @@ exports.deleteUser = async (req, res) => {
     }
 
     // Delete all posts by this user
-    await Post.deleteMany({ author: user._id });
+    await Post.destroy({ where: { authorId: user.id } });
 
     // Delete the user
-    await user.remove();
+    await user.destroy();
 
     res.status(200).json({
       success: true,

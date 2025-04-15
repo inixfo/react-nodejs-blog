@@ -254,7 +254,7 @@ const AdminDashboard = () => {
     if (type === 'post') {
       if (item) {
         setFormData({
-          _id: item._id,
+          id: item.id,
           title: item.title || '',
           content: item.content || '',
           category: item.category?._id || '',
@@ -343,9 +343,9 @@ const AdminDashboard = () => {
               return;
             }
             
-            if (formData._id) {
+            if (formData.id) {
               console.log('Updating category:', categoryData);
-              await updateCategory(formData._id, categoryData);
+              await updateCategory(formData.id, categoryData);
             } else {
               console.log('Creating category:', categoryData);
               await createCategory(categoryData);
@@ -383,8 +383,8 @@ const AdminDashboard = () => {
               console.log(pair[0] + ': ' + pair[1]);
             }
 
-            if (formData._id) {
-              await updatePost(formData._id, postData);
+            if (formData.id) {
+              await updatePost(formData.id, postData);
             } else {
               try {
                 const response = await createPost(postData);
@@ -426,8 +426,8 @@ const AdminDashboard = () => {
               isApproved: formData.isApproved
             };
 
-            if (formData._id) {
-              await updateUser(formData._id, userData);
+            if (formData.id) {
+              await updateUser(formData.id, userData);
             } else {
               await createUser(userData);
             }
@@ -486,7 +486,7 @@ const AdminDashboard = () => {
       if (response.data.success) {
         // Update the users list to reflect the change
         setUsers(users.map(user => 
-          user._id === userId ? { ...user, isApproved: true } : user
+          user.id === userId ? { ...user, isApproved: true } : user
         ));
         setSnackbar({
           open: true,
@@ -516,7 +516,7 @@ const AdminDashboard = () => {
       if (response.data.success) {
         // Update the reports state immediately
         setReports(reports.map(report => 
-          report._id === reportId 
+          report.id === reportId 
             ? { ...report, status: 'resolved' }
             : report
         ));
@@ -651,8 +651,8 @@ const AdminDashboard = () => {
           </TableHead>
           <TableBody>
             {reports.map((report) => (
-              <TableRow key={report._id}>
-                <TableCell>{report._id}</TableCell>
+              <TableRow key={report.id}>
+                <TableCell>{report.id}</TableCell>
                 <TableCell>{report.reportedItemType}</TableCell>
                 <TableCell>{report.reason}</TableCell>
                 <TableCell>
@@ -670,13 +670,13 @@ const AdminDashboard = () => {
                       variant="contained"
                       color="success"
                       size="small"
-                      onClick={() => handleResolveReport(report._id)}
+                      onClick={() => handleResolveReport(report.id)}
                       sx={{ mr: 1 }}
                     >
                       Resolve
                     </Button>
                   )}
-                  <IconButton onClick={(e) => handleMenuClick(e, { type: 'report', id: report._id })}>
+                  <IconButton onClick={(e) => handleMenuClick(e, { type: 'report', id: report.id })}>
                     <MoreVertIcon />
                   </IconButton>
                 </TableCell>
@@ -702,7 +702,7 @@ const AdminDashboard = () => {
             </TableHead>
             <TableBody>
               {reportedComments.map((comment) => (
-                <TableRow key={comment._id}>
+                <TableRow key={comment.id}>
                   <TableCell>{comment.content}</TableCell>
                   <TableCell>{comment.author.name}</TableCell>
                   <TableCell>{comment.reports.length}</TableCell>
@@ -711,7 +711,7 @@ const AdminDashboard = () => {
                       variant="contained"
                       color="error"
                       size="small"
-                      onClick={() => handleDeleteComment(comment._id)}
+                      onClick={() => handleDeleteComment(comment.id)}
                       sx={{ mr: 1 }}
                     >
                       Delete
@@ -720,7 +720,7 @@ const AdminDashboard = () => {
                       variant="contained"
                       color="primary"
                       size="small"
-                      onClick={() => handleIgnoreReport(comment._id)}
+                      onClick={() => handleIgnoreReport(comment.id)}
                     >
                       Ignore
                     </Button>
@@ -759,7 +759,7 @@ const AdminDashboard = () => {
           </TableHead>
           <TableBody>
             {posts.map((post) => (
-              <TableRow key={post._id}>
+              <TableRow key={post.id}>
                 <TableCell>{post.title}</TableCell>
                 <TableCell>{post.author?.name}</TableCell>
                 <TableCell>{post.category?.name}</TableCell>
@@ -768,7 +768,7 @@ const AdminDashboard = () => {
                   <IconButton onClick={() => handleOpenDialog('post', post)}>
                     <EditIcon />
                   </IconButton>
-                  <IconButton onClick={(e) => handleMenuClick(e, { type: 'post', id: post._id })}>
+                  <IconButton onClick={(e) => handleMenuClick(e, { type: 'post', id: post.id })}>
                     <DeleteIcon />
                   </IconButton>
                 </TableCell>
@@ -803,14 +803,14 @@ const AdminDashboard = () => {
           </TableHead>
           <TableBody>
             {categories.map((category) => (
-              <TableRow key={category._id}>
+              <TableRow key={category.id}>
                 <TableCell>{category.name}</TableCell>
                 <TableCell>{category.description}</TableCell>
                 <TableCell>
                   <IconButton onClick={() => handleOpenDialog('category', category)}>
                     <EditIcon />
                   </IconButton>
-                  <IconButton onClick={(e) => handleMenuClick(e, { type: 'category', id: category._id })}>
+                  <IconButton onClick={(e) => handleMenuClick(e, { type: 'category', id: category.id })}>
                     <DeleteIcon />
                   </IconButton>
                 </TableCell>
@@ -848,7 +848,7 @@ const AdminDashboard = () => {
           </TableHead>
           <TableBody>
             {users.map((user) => (
-              <TableRow key={user._id}>
+              <TableRow key={user.id}>
                 <TableCell>{user.name}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
@@ -870,7 +870,7 @@ const AdminDashboard = () => {
                       variant="contained"
                       color="success"
                       size="small"
-                      onClick={() => handleApproveUser(user._id)}
+                      onClick={() => handleApproveUser(user.id)}
                       sx={{ mr: 1 }}
                     >
                       Approve
@@ -879,7 +879,7 @@ const AdminDashboard = () => {
                   <IconButton onClick={() => handleOpenDialog('user', user)}>
                     <EditIcon />
                   </IconButton>
-                  <IconButton onClick={(e) => handleMenuClick(e, { type: 'user', id: user._id })}>
+                  <IconButton onClick={(e) => handleMenuClick(e, { type: 'user', id: user.id })}>
                     <DeleteIcon />
                   </IconButton>
                 </TableCell>
@@ -1012,7 +1012,7 @@ const AdminDashboard = () => {
             <List>
               {reports.slice(0, 5).map((report) => (
                 <ListItem
-                  key={report._id}
+                  key={report.id}
                   sx={{
                     borderRadius: 2,
                     mb: 1,
@@ -1057,7 +1057,7 @@ const AdminDashboard = () => {
             <List>
               {posts.slice(0, 5).map((post) => (
                 <ListItem
-                  key={post._id}
+                  key={post.id}
                   sx={{
                     borderRadius: 2,
                     mb: 1,
@@ -1187,8 +1187,8 @@ const AdminDashboard = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <ArticleIcon color="primary" />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              {dialogType === 'category' ? (formData._id ? 'Edit Category' : 'Add Category') : ''}
-              {dialogType === 'post' ? (formData._id ? 'Edit Post' : 'Create New Post') : ''}
+              {dialogType === 'category' ? (formData.id ? 'Edit Category' : 'Add Category') : ''}
+              {dialogType === 'post' ? (formData.id ? 'Edit Post' : 'Create New Post') : ''}
               {dialogType === 'user' ? 'Edit User' : ''}
             </Typography>
           </Box>
@@ -1264,7 +1264,7 @@ const AdminDashboard = () => {
                     }}
                   >
                     {categories.map((category) => (
-                      <MenuItem key={category._id} value={category._id}>
+                      <MenuItem key={category.id} value={category.id}>
                         {category.name}
                       </MenuItem>
                     ))}
@@ -1408,7 +1408,7 @@ const AdminDashboard = () => {
                 margin="normal"
                 required
               />
-              {!formData._id && (
+              {!formData.id && (
                 <TextField
                   fullWidth
                   label="Password"
@@ -1416,7 +1416,7 @@ const AdminDashboard = () => {
                   value={formData.password || ''}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   margin="normal"
-                  required={!formData._id}
+                  required={!formData.id}
                 />
               )}
               <TextField
@@ -1459,7 +1459,7 @@ const AdminDashboard = () => {
               }
             }}
           >
-            {formData._id ? 'Update' : 'Create'}
+            {formData.id ? 'Update' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -1,18 +1,27 @@
 const Comment = require('../models/Comment');
 const Post = require('../models/Post');
+const User = require('../models/User');
 
 // @desc    Get comments for a post
 // @route   GET /api/v1/posts/:postId/comments
 // @access  Public
 exports.getComments = async (req, res) => {
   try {
-    const comments = await Comment.find({
-      post: req.params.postId,
-      parentComment: null,
-      status: 'active'
-    })
-      .populate('author', 'name avatar')
-      .sort({ createdAt: -1 });
+    const comments = await Comment.findAll({
+      where: {
+        postId: req.params.postId,
+        parentCommentId: null,
+        status: 'active'
+      },
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'name', 'avatar']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.status(200).json({
       success: true,
@@ -31,10 +40,7 @@ exports.getComments = async (req, res) => {
 // @access  Private
 exports.createComment = async (req, res) => {
   try {
-    req.body.post = req.params.postId;
-    req.body.author = req.user.id;
-
-    const post = await Post.findById(req.params.postId);
+    const post = await Post.findByPk(req.params.postId);
     if (!post) {
       return res.status(404).json({
         success: false,
@@ -42,14 +48,20 @@ exports.createComment = async (req, res) => {
       });
     }
 
-    const comment = await Comment.create(req.body);
+    const comment = await Comment.create({
+      ...req.body,
+      postId: req.params.postId,
+      authorId: req.user.id
+    });
     
-    // Populate author information
-    await comment.populate('author', 'name');
+    // Get author information
+    const author = await User.findByPk(req.user.id, {
+      attributes: ['id', 'name', 'avatar']
+    });
 
     res.status(201).json({
       success: true,
-      data: comment
+      data: { ...comment.toJSON(), author }
     });
   } catch (error) {
     console.error('Error creating comment:', error);
@@ -65,7 +77,7 @@ exports.createComment = async (req, res) => {
 // @access  Private
 exports.updateComment = async (req, res) => {
   try {
-    let comment = await Comment.findById(req.params.id);
+    const comment = await Comment.findByPk(req.params.id);
 
     if (!comment) {
       return res.status(404).json({
@@ -75,21 +87,29 @@ exports.updateComment = async (req, res) => {
     }
 
     // Make sure user is comment owner or admin
-    if (comment.author.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (comment.authorId !== req.user.id && req.user.role !== 'admin') {
       return res.status(401).json({
         success: false,
         message: 'Not authorized to update this comment'
       });
     }
 
-    comment = await Comment.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
-    }).populate('author', 'name avatar');
+    await comment.update(req.body);
+
+    // Get updated comment with author info
+    const updatedComment = await Comment.findByPk(comment.id, {
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'name', 'avatar']
+        }
+      ]
+    });
 
     res.status(200).json({
       success: true,
-      data: comment
+      data: updatedComment
     });
   } catch (error) {
     res.status(400).json({
@@ -104,7 +124,7 @@ exports.updateComment = async (req, res) => {
 // @access  Private
 exports.deleteComment = async (req, res) => {
   try {
-    const comment = await Comment.findById(req.params.id);
+    const comment = await Comment.findByPk(req.params.id);
 
     if (!comment) {
       return res.status(404).json({
@@ -114,14 +134,14 @@ exports.deleteComment = async (req, res) => {
     }
 
     // Make sure user owns comment or is admin
-    if (comment.author.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (comment.authorId !== req.user.id && req.user.role !== 'admin') {
       return res.status(401).json({
         success: false,
         message: 'Not authorized to delete this comment'
       });
     }
 
-    await comment.remove();
+    await comment.destroy();
 
     res.status(200).json({
       success: true,
@@ -141,7 +161,7 @@ exports.deleteComment = async (req, res) => {
 // @access  Private
 exports.likeComment = async (req, res) => {
   try {
-    const comment = await Comment.findById(req.params.id);
+    const comment = await Comment.findByPk(req.params.id);
 
     if (!comment) {
       return res.status(404).json({
@@ -150,18 +170,16 @@ exports.likeComment = async (req, res) => {
       });
     }
 
-    // Check if comment has already been liked by user
-    const isLiked = comment.likes.includes(req.user.id);
+    // Get current likes array
+    const likes = comment.likes || [];
+    const isLiked = likes.includes(req.user.id);
 
-    if (isLiked) {
-      // Unlike
-      comment.likes = comment.likes.filter(like => like.toString() !== req.user.id);
-    } else {
-      // Like
-      comment.likes.push(req.user.id);
-    }
+    // Update likes array
+    const updatedLikes = isLiked
+      ? likes.filter(id => id !== req.user.id)
+      : [...likes, req.user.id];
 
-    await comment.save();
+    await comment.update({ likes: updatedLikes });
 
     res.status(200).json({
       success: true,
@@ -180,7 +198,7 @@ exports.likeComment = async (req, res) => {
 // @access  Private
 exports.reportComment = async (req, res) => {
   try {
-    const comment = await Comment.findById(req.params.id);
+    const comment = await Comment.findByPk(req.params.id);
 
     if (!comment) {
       return res.status(404).json({
@@ -189,10 +207,9 @@ exports.reportComment = async (req, res) => {
       });
     }
 
-    // Check if user has already reported this comment
-    const hasReported = comment.reports.some(
-      report => report.user.toString() === req.user.id
-    );
+    // Get current reports array
+    const reports = comment.reports || [];
+    const hasReported = reports.some(report => report.userId === req.user.id);
 
     if (hasReported) {
       return res.status(400).json({
@@ -201,30 +218,24 @@ exports.reportComment = async (req, res) => {
       });
     }
 
-    // Add report
-    comment.reports.push({
-      user: req.user.id,
+    // Add new report
+    const newReport = {
+      userId: req.user.id,
       reason: req.body.reason,
-      description: req.body.description
+      createdAt: new Date()
+    };
+
+    await comment.update({
+      reports: [...reports, newReport],
+      status: reports.length + 1 >= 3 ? 'reported' : comment.status
     });
-
-    // Update status to reported if it's the first report
-    if (comment.reports.length === 1) {
-      comment.status = 'reported';
-    }
-
-    await comment.save();
-
-    // Populate the report data
-    await comment.populate('reports.user', 'name');
 
     res.status(200).json({
       success: true,
-      data: comment
+      message: 'Comment reported successfully'
     });
   } catch (error) {
-    console.error('Error reporting comment:', error);
-    res.status(500).json({
+    res.status(400).json({
       success: false,
       message: error.message
     });
@@ -236,26 +247,35 @@ exports.reportComment = async (req, res) => {
 // @access  Private/Admin
 exports.getReportedComments = async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized to access reported comments'
-      });
-    }
-
-    const comments = await Comment.find({ status: 'reported' })
-      .populate('author', 'name avatar')
-      .populate('reports.user', 'name')
-      .sort({ 'reports.createdAt': -1 });
+    const comments = await Comment.findAll({
+      where: {
+        status: 'reported'
+      },
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'name', 'avatar']
+        },
+        {
+          model: Post,
+          as: 'post',
+          attributes: ['id', 'title']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.status(200).json({
       success: true,
+      count: comments.length,
       data: comments
     });
   } catch (error) {
-    res.status(400).json({
+    console.error('Error fetching reported comments:', error);
+    res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Error fetching reported comments'
     });
   }
 };
@@ -265,15 +285,7 @@ exports.getReportedComments = async (req, res) => {
 // @access  Private/Admin
 exports.handleReportedComment = async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized to handle reported comments'
-      });
-    }
-
-    const { action } = req.body;
-    const comment = await Comment.findById(req.params.id);
+    const comment = await Comment.findByPk(req.params.id);
 
     if (!comment) {
       return res.status(404).json({
@@ -282,26 +294,21 @@ exports.handleReportedComment = async (req, res) => {
       });
     }
 
-    if (action === 'delete') {
-      // Remove comment from post's comments array
-      await Post.findByIdAndUpdate(comment.post, {
-        $pull: { comments: comment._id }
-      });
-      await comment.remove();
-    } else if (action === 'ignore') {
-      comment.status = 'active';
-      comment.reports = [];
-      await comment.save();
-    }
+    // Update comment status based on action
+    await comment.update({
+      status: req.body.action === 'approve' ? 'active' : 'removed',
+      reports: [] // Clear reports after handling
+    });
 
     res.status(200).json({
       success: true,
-      data: {}
+      data: comment
     });
   } catch (error) {
-    res.status(400).json({
+    console.error('Error handling reported comment:', error);
+    res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Error handling reported comment'
     });
   }
 }; 
